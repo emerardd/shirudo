@@ -320,6 +320,52 @@ jobs:
           path: vmlinux.h
           if-no-files-found: error
 
+  kernel-obs-preview:
+    if: github.event_name == 'pull_request'
+    needs: [deb, rpm-target]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build preview package with a temporary signer
+        uses: ./.github/actions/kernel-obs
+        with:
+          mode: preview
+          version: 0.1.${{ github.run_number }}-pr.${{ github.event.pull_request.number }}
+          artifact-name: kernel-obs-preview-pr-${{ github.event.pull_request.number }}
+
+  kernel-obs-publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [deb, rpm-target]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: kernel-obs
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build and publish BPM package
+        uses: ./.github/actions/kernel-obs
+        with:
+          mode: publish
+          version: 0.1.${{ github.run_number }}
+          artifact-name: kernel-obs-bpm
+          signing-key-pem: ${{ secrets.KERNEL_OBS_SIGNING_KEY_PEM }}
+          cert-der-b64: ${{ secrets.KERNEL_OBS_CERT_DER_B64 }}
+          registry-username: ${{ github.actor }}
+          registry-token: ${{ secrets.GITHUB_TOKEN }}
+
   rpm-operator:
     needs: rpm-target
     runs-on: ubuntu-latest
